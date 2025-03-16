@@ -17,11 +17,11 @@ A FastAPI application for analyzing chat data, focusing on sentiment analysis an
 
 ### Sentiment Analysis
 
-- **Primary Model**: [snunlp/KR-ELECTRA-discriminator](https://huggingface.co/snunlp/KR-ELECTRA-discriminator) - A Korean ELECTRA model fine-tuned for sentiment analysis
-- **Multi-emotion detection**: Identifies multiple emotions in a single message
-- **Sentiment categorization**: Maps emotions to positive/negative/neutral sentiment categories
-- **Conversation-level analysis**: Overall sentiment trends and distribution across conversations
-- **Asynchronous processing**: Efficient handling of large chat histories
+- **Model**: [Copycats/koelectra-base-v3-generalized-sentiment-analysis](https://huggingface.co/Copycats/koelectra-base-v3-generalized-sentiment-analysis) - A KoELECTRA model trained on diverse domains (shopping reviews, movie reviews, game reviews, etc.) for generalized Korean sentiment analysis
+- **Binary sentiment classification**: Classifies text as either Positive or Negative
+- **High domain generalizability**: Performs well across various domains (95% accuracy on Naver shopping reviews, 93% on NSMT, 88% on Steam game reviews)
+- **Conversation-level analysis**: Overall sentiment trends and distribution across conversations, sentiment patterns by participant
+- **Asynchronous processing**: Efficient batch processing for handling large chat histories
 - **Caching**: Performance optimization with LRU caching for repeated phrases
 
 ### Conversation Segmentation and RAG
@@ -116,11 +116,12 @@ Endpoints for chatting with your conversation history using RAG.
 ### Sentiment Analysis Pipeline
 
 1. Text cleaning using the text preprocessor
-2. Emotion detection using KR-ELECTRA discriminator model
-3. Mapping emotions to sentiment polarities (positive/negative/neutral)
-4. Parallel processing of messages for efficiency
-5. Sentiment aggregation for conversation-level insights
-6. Result caching for performance optimization
+2. Binary sentiment analysis (positive/negative) using the KoELECTRA model
+3. Parallel processing of messages for efficiency
+4. Sentiment aggregation for conversation-level insights
+5. Sentiment trend tracking over time
+6. Per-user sentiment ratio and trend analysis
+7. Result caching for performance optimization
 
 ### RAG Chat Pipeline
 

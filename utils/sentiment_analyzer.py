@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 
 class SentimentAnalyzer:
     """
-    Sentiment analyzer for chat messages using KoELECTRA model.
+    Sentiment analyzer for chat messages using a pre-trained Korean sentiment analysis model.
     Implements singleton pattern to ensure model is loaded only once.
     """
     _instance = None
@@ -22,12 +22,14 @@ class SentimentAnalyzer:
             cls._instance._initialized = False
         return cls._instance
 
-    def __init__(self, model_name: str = "snunlp/KR-ELECTRA-discriminator"):
+    def __init__(self, model_name: str = "Copycats/koelectra-base-v3-generalized-sentiment-analysis"):
         """
         Initialize the sentiment analyzer with the specified model.
         
         Args:
-            model_name: The name of the HuggingFace model to use
+            model_name: The name of the HuggingFace model to use.
+                        Default is Copycats/koelectra-base-v3-generalized-sentiment-analysis which is
+                        a generalized Korean sentiment analysis model trained on multiple domains.
         """
         if self._initialized:
             return
@@ -67,7 +69,7 @@ class SentimentAnalyzer:
             Dict containing sentiment scores
         """
         if not text or len(text.strip()) == 0:
-            return {"positive": 0.0, "neutral": 1.0, "negative": 0.0}
+            return {"positive": 0.0, "negative": 1.0}
             
         try:
             inputs = self.tokenizer(
@@ -85,47 +87,45 @@ class SentimentAnalyzer:
             probs = torch.nn.functional.softmax(outputs.logits, dim=-1)
             probs = probs.cpu().numpy()[0]
             
-            # Use the model's configuration to map labels correctly
-            if self.id2label:
-                # Use the model's own label mapping
+            # For Copycats/koelectra-base-v3-generalized-sentiment-analysis model:
+            # Label 0 = negative, Label 1 = positive
+            if self.num_labels == 2:
+                sentiment_scores = {
+                    "negative": float(probs[0]),
+                    "positive": float(probs[1])
+                }
+            else:
+                # Fallback for other models with more than 2 classes
+                # Convert to binary classification by mapping
                 sentiment_scores = {
                     "negative": 0.0,
-                    "neutral": 0.0,
                     "positive": 0.0
                 }
                 
-                # Map based on label names in id2label
-                for idx, label in self.id2label.items():
-                    label_lower = label.lower()
-                    if "긍정" in label_lower or "positive" in label_lower:
-                        sentiment_scores["positive"] = float(probs[int(idx)])
-                    elif "부정" in label_lower or "negative" in label_lower:
-                        sentiment_scores["negative"] = float(probs[int(idx)])
-                    else:
-                        sentiment_scores["neutral"] = float(probs[int(idx)])
-            else:
-                # Fallback mapping if id2label is not available
-                # Adapt this based on the model's documentation
-                if self.num_labels == 2:
-                    # Binary classification (e.g., negative/positive)
-                    sentiment_scores = {
-                        "negative": float(probs[0]),
-                        "neutral": 0.0,
-                        "positive": float(probs[1])
-                    }
+                # Map based on label names in id2label if available
+                if self.id2label:
+                    for idx, label in self.id2label.items():
+                        idx = int(idx)
+                        label_lower = label.lower()
+                        if "긍정" in label_lower or "positive" in label_lower or label == "1":
+                            sentiment_scores["positive"] = float(probs[idx])
+                        elif "부정" in label_lower or "negative" in label_lower or label == "0":
+                            sentiment_scores["negative"] = float(probs[idx])
                 else:
-                    # 3-class classification
-                    sentiment_scores = {
-                        "negative": float(probs[0]),
-                        "neutral": float(probs[1]),
-                        "positive": float(probs[2])
-                    }
+                    # Generic mapping for multi-class: merge all non-positive as negative
+                    if self.num_labels > 2:
+                        for i, prob in enumerate(probs):
+                            # Last class is usually positive in multi-class sentiment
+                            if i == self.num_labels - 1:
+                                sentiment_scores["positive"] = float(prob)
+                            else:
+                                sentiment_scores["negative"] += float(prob)
             
             return sentiment_scores
             
         except Exception as e:
             logger.error(f"Error analyzing sentiment: {str(e)}", exc_info=True)
-            return {"positive": 0.0, "neutral": 1.0, "negative": 0.0}
+            return {"positive": 0.0, "negative": 1.0}
     
     async def analyze_sentiment_by_user(self, messages_df: pd.DataFrame) -> Dict[str, Any]:
         """
@@ -186,11 +186,13 @@ class SentimentAnalyzer:
         
         # Extract sentiment scores
         df['positive'] = df['sentiment'].apply(lambda x: x.get('positive', 0))
-        df['neutral'] = df['sentiment'].apply(lambda x: x.get('neutral', 0))
         df['negative'] = df['sentiment'].apply(lambda x: x.get('negative', 0))
         
-        # Calculate dominant sentiment
-        df['dominant_sentiment'] = df[['positive', 'neutral', 'negative']].idxmax(axis=1)
+        # Calculate dominant sentiment (only positive or negative)
+        df['dominant_sentiment'] = df.apply(
+            lambda row: 'positive' if row['positive'] >= row['negative'] else 'negative', 
+            axis=1
+        )
         
         # Analyze sentiment by user
         user_sentiment = {}
@@ -198,15 +200,17 @@ class SentimentAnalyzer:
             user_sentiment[user] = {
                 'average_sentiment': {
                     'positive': user_df['positive'].mean(),
-                    'neutral': user_df['neutral'].mean(),
                     'negative': user_df['negative'].mean()
                 },
                 'dominant_sentiment': user_df['dominant_sentiment'].mode()[0],
                 'message_count': len(user_df),
                 'sentiment_distribution': {
                     'positive': sum(user_df['dominant_sentiment'] == 'positive'),
-                    'neutral': sum(user_df['dominant_sentiment'] == 'neutral'),
                     'negative': sum(user_df['dominant_sentiment'] == 'negative')
+                },
+                'sentiment_ratio': {
+                    'positive_ratio': sum(user_df['dominant_sentiment'] == 'positive') / len(user_df),
+                    'negative_ratio': sum(user_df['dominant_sentiment'] == 'negative') / len(user_df)
                 }
             }
         
@@ -214,15 +218,17 @@ class SentimentAnalyzer:
         overall_sentiment = {
             'average_sentiment': {
                 'positive': df['positive'].mean(),
-                'neutral': df['neutral'].mean(),
                 'negative': df['negative'].mean()
             },
             'dominant_sentiment': df['dominant_sentiment'].mode()[0],
             'message_count': len(df),
             'sentiment_distribution': {
                 'positive': sum(df['dominant_sentiment'] == 'positive'),
-                'neutral': sum(df['dominant_sentiment'] == 'neutral'),
                 'negative': sum(df['dominant_sentiment'] == 'negative')
+            },
+            'sentiment_ratio': {
+                'positive_ratio': sum(df['dominant_sentiment'] == 'positive') / len(df),
+                'negative_ratio': sum(df['dominant_sentiment'] == 'negative') / len(df)
             }
         }
         
@@ -252,15 +258,15 @@ class SentimentAnalyzer:
         df['date'] = df['datetime'].dt.date
         daily_sentiment = df.groupby('date').agg({
             'positive': 'mean',
-            'neutral': 'mean', 
-            'negative': 'mean'
+            'negative': 'mean', 
+            'dominant_sentiment': lambda x: sum(x == 'positive') / len(x)  # Positive ratio
         }).reset_index()
         
         return {
             'dates': daily_sentiment['date'].astype(str).tolist(),
             'positive': daily_sentiment['positive'].tolist(),
-            'neutral': daily_sentiment['neutral'].tolist(),
-            'negative': daily_sentiment['negative'].tolist()
+            'negative': daily_sentiment['negative'].tolist(),
+            'positive_ratio': daily_sentiment['dominant_sentiment'].tolist()
         }
 
 # Create a singleton instance
