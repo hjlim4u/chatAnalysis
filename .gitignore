@@ -1,0 +1,99 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environment
+venv/
+env/
+ENV/
+.env
+.venv
+env.bak/
+venv.bak/
+pythonenv*
+
+# IDE specific files
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+
+# Project specific
+logs/
+*.log
+.coverage
+htmlcov/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+coverage.xml
+*.cover
+
+# Jupyter Notebook
+.ipynb_checkpoints
+*.ipynb
+
+# NLP Models and data
+# models/
+*.bin
+*.pickle
+*.pkl
+*.h5
+*.hdf5
+*.model
+*.joblib
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+data/
+# Redis
+dump.rdb
+
+# Temporary files
+tmp/
+temp/
+
+# Config files with secrets
+config/local.py
+config/*.local.py
+*.env
+.env.*
+
+# Compiled JavaScript
+node_modules/
+static/build/
+static/dist/
+
+# Dependency lock files - keep these in version control
+# !requirements.txt
+# !Pipfile.lock
+# !poetry.lock
+
+# cursor
+.cursorrules
+.cursor/rules/*
+
+# Chat history
+KakaoTalkChats_android.txt
+Talk_2025.1.15 19_40-1_ios.txt
